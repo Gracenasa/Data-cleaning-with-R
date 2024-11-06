@@ -1,0 +1,156 @@
+---
+title: "Airline reviews analysis report"
+author: "Nasaka Watitwa"
+date: "2024-11-05"
+output: 
+  html_document:
+    code_folding: "hide"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading packages
+```{r echo=FALSE}
+library(lubridate)
+library(tidyverse)
+library(readr)
+```
+# Loading data
+```{r}
+air_reviews <-read.csv("Airline_review.csv")
+```
+
+# Data exploration
+```{r}
+# Replace blank rows with NA
+air_reviews <- air_reviews %>%
+  mutate(across(where(is.character), ~na_if(., "")))
+
+# Understand the structure of our data set
+for (col in colnames(air_reviews)) {
+  random_value <- sample(air_reviews[[col]], 1)
+  print(paste(col, ":", typeof(air_reviews[[col]]), "- Random value :", random_value))
+}
+
+# Acknowledge missing values
+for (col in colnames(air_reviews)) {
+  print(paste("missing values in", col, ":", sum(is.na(air_reviews[[col]]))))
+}
+
+```
+
+# Data Cleaning and transformation
+```{r}
+clean_review <- air_reviews %>% 
+  filter(Verified == "True")
+
+# changing col types, i.e overall_rating, review_date, work wtih verfied ratings, and change overall_rating to 5 star
+clean_review <- clean_review %>% 
+  mutate(
+    Overall_Rating = as.numeric(Overall_Rating),
+    Review.Date = dmy(Review.Date),
+    rating = case_when(
+      Overall_Rating %in% c(1, 2) ~ 1,
+      Overall_Rating %in% c(3,4) ~ 2,
+      Overall_Rating %in% c(5, 6) ~ 3,
+      Overall_Rating %in% c(7, 8) ~ 4,
+      Overall_Rating %in% c(9, 10) ~ 5
+    ),
+    Review_Title = as.character(str_remove_all(Review_Title, '"')))
+
+head(clean_review)
+```
+
+#Data Exploration
+We first rank airlines in terms of popularity (flights made) and quality (ratings)
+```{r}
+# Top 3 most popular airlines
+top_10_airlines <- clean_review %>% 
+  group_by(Airline.Name) %>% 
+  summarise(
+    flights = n()
+  ) %>% 
+  ungroup %>% 
+  select(Airline.Name, flights) %>% 
+  arrange(-flights) %>% 
+  head(10)
+
+
+#Plot
+ggplot(top_10_airlines, aes(x = reorder(Airline.Name, -flights), y = flights)) +
+  geom_bar(stat = "identity", fill = "antiquewhite2", color = "black") +
+  labs(
+    title = "Top Airlines",
+    x = "Airline",
+    y = "Flights"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold", color = "black"),
+    axis.title = element_text(size = 14, color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
+
+
+```{r}
+#Top rated airlines
+
+top_rated_airline <- clean_review %>% 
+  group_by(Airline.Name) %>% 
+   summarise(
+    ratings = mean(rating),
+    flights = n()
+  ) %>% 
+  ungroup %>% 
+  filter(flights > 5) %>% 
+  select(Airline.Name, ratings) %>% 
+  arrange(-ratings) %>% 
+  head(10)
+
+ggplot(top_rated_airline, aes(x = reorder(Airline.Name, -ratings), y = ratings)) +
+  geom_bar(stat = "identity", fill = "antiquewhite2", color = "black") +
+  labs(
+    title = "High rating airlines",
+    x = "Airline"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold", color = "black"),
+    axis.title = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(size = 10, angle = 30, hjust = 1)
+  ) +
+ scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) 
+
+```
+
+#Seat Type Popularity
+```{r}
+packages <- clean_review %>% 
+  group_by(Seat.Type) %>% 
+  summarise(
+    flights = n(),
+    ratings = mean(rating)
+  ) %>% 
+  ungroup %>% 
+  select(Seat.Type, ratings, flights) %>% 
+  arrange(-ratings)
+
+ggplot(packages, aes(x = reorder(Seat.Type, -ratings), y = ratings)) +
+  geom_bar(stat = "identity", fill = "antiquewhite2", color = "black") +
+  labs(
+    title = "Travel Class Ratings",
+    x = "Travel Class"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold", color = "black"),
+    axis.title = element_text(size = 12, color = "black"),
+    axis.text.x = element_text(size = 10, hjust = 1)
+  ) +
+ scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) 
+
+```
